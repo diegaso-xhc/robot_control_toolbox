@@ -24,12 +24,7 @@ The repository contains the following files:
 The class is written in a way that facilitates the control of any serial robot. Within each type of controller there are commented lines which can be tested depending on the desired functionality. Some of these functionalities include for instance gravity compensation, PID + dynamics, PID control, among others.
 
 <br />
-Whenever using torque control, you will be able to add external forces to the end effector by clicking in the screen and dragging the mouse. Forces are expressed on the end effector's frame. For instance, if you drag the mouse to the right of the screen a positive force on the X axis of the end effector's frame will be applied. External forces values are visualized within the screen for a better understanding.
-<br />
-
-
-### Position error vs. Time
-
+Whenever using torque control, you will be able to add external forces to the end effector by clicking in the screen and dragging the mouse. Forces are expressed on the end effector's frame. For instance, if you drag the mouse to the right of the screen, a positive force on the X axis of the end effector's frame will be applied. External forces values are visualized within the screen for better understanding.
 <br />
 
 ## Contributions
