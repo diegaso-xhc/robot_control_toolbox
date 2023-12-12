@@ -21,7 +21,8 @@ The repository contains the following files:
 - mr: The functions provided by Modern Robotics open source repository (https://www.google.com/search?channel=fs&client=ubuntu&q=modern+robotics+repository)
 ```
 
-The classes are written in a way that facilitates the connection with the hand. The repository also reduces the complexity of handling bytes transmission from and to the hand. This allows the user to focus directly on high level controllers and experiment within different applications.
+The class is written in a way that facilitates the control of any serial robot. Within each type of controller there are commented lines which can be tested depending on the user functionality. Some of these functionalities include for instance gravity compensation, PID + dynamics, PID control, among others.
+
 <br />
 Whenever using position, current or force controllers, you will be able to see and extract the error and response on each one of the fingers you desired to control. The following images correspond to the position error and response signals of the motion on the gif above:
 <br />
