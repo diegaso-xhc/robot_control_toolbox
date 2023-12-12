@@ -24,14 +24,12 @@ The repository contains the following files:
 The class is written in a way that facilitates the control of any serial robot. Within each type of controller there are commented lines which can be tested depending on the user functionality. Some of these functionalities include for instance gravity compensation, PID + dynamics, PID control, among others.
 
 <br />
-Whenever using position, current or force controllers, you will be able to see and extract the error and response on each one of the fingers you desired to control. The following images correspond to the position error and response signals of the motion on the gif above:
+Whenever using torque control, you will be able to add external forces to the end effector by clicking in the screen and dragging the mouse. Forces are expressed on the end effector's frame. For isntance, if you drag the mouse to the right of the screen a positive force on the X axis of the end effector's frame will be applied. External forces values are visualized within the screen for a better understanding.
 <br />
 
 
 ### Position error vs. Time
-<p align="center">
-   <img src="/Visualizations/Velocity.gif" width="750" />
-</p>
+
 <br />
 
 ## Contributions
@@ -39,35 +37,40 @@ Whenever using position, current or force controllers, you will be able to see a
 The contributions of this repository can be summarized as follows:
 
 ```
-- A class that facilitates the connection via serial port to a device.
-- Classes that handle the byte transmission to and from the robotic hand.
-- Most of the functionalities explained in the manual of the ih2 azzurra hand (you won't need to develop things on your own).
-- Ready to use controllers for position, current and force (P,PI,PD,PID).
-- Visualization functions for analysis of the controllers responses.
+- A class that facilitates the understanding of the control of serial robots.
+- A visualization tool tailored for controllers on a double pendulum (easily customizable to others).
+- Ready to use controllers for position using velocity and torque as control variables.
+- An interactive tool for understanding of impedance control.
 ```
 
-## Examples of GUI usage
+## Examples of toolbox
 
-### Time response to a Sine-wave-like excitement signal
+### Cartesian velocity control
 
-The following figure shows the time response of a system to a sine wave excitement signal of 4Hz. Note that in order to obtain the time response, the user needs to do the following:
+The following figure shows an example of a cartesian velocity control, where the robot tracks desired SE3 matrices. To run this command simply uncomment the required line at the end of the main.m file.
 
-```
-- Input the transfer function: [numerator separated by commas];[denominator separated by commas]
-- Click on Create Model
-- Input the sampling time (dt), initial time (t(t0)), and final time in seconds.
-- If the user requires a step response, click on Step response. For sine wave excitements, please input the frequency of the sine wave and click on Sine response.
-- The user can then click on get time response or view frequency spectrum.
-- Although visualizations for Bode and Nichols charts are not available at the moment, the user can still click them and extract the frequency responses from the library.
-```
+<p align="center">
+   <img src="/Visualizations/Velocity.gif" width="750" />
+</p>
+
+### Cartesian velocity control
+
+The following figure shows an example of a cartesian velocity control, where the robot tracks desired SE3 matrices. To run this command simply uncomment the required line at the end of the main.m file.
+
+<p align="center">
+   <img src="/Visualizations/Velocity.gif" width="750" />
+</p>
+
+
+<p align="center">
+   <img src="/Visualizations/Cartesian_velocity_control.png" width="650" />
+</p>
 
 <p align="center">
    <img src="/Visualizations/Joint_torque_control.png" width="650" />
 </p>
 
-<p align="center">
-   <img src="/Visualizations/Cartesian_velocity_control.png" width="650" />
-</p>
+
 
 <p align="center">
    <img src="/Visualizations/Cartesian_torque_control.png" width="650" />
