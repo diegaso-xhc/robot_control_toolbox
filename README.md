@@ -58,7 +58,7 @@ The following figure shows an example of a cartesian velocity control, where the
 The following figure shows an example of a joint torque control, where the robot tracks desired joint position values using torque as the control variable. To run this command simply uncomment the required line at the end of the main.m file.
 
 <p align="center">
-   <img src="/Visualizations/Joint_torque_control.png" width="650" />
+   <img src="/Visualizations/Joint_torque_control.png" width="750" />
 </p>
 
 ### Cartesian torque control
@@ -66,7 +66,7 @@ The following figure shows an example of a joint torque control, where the robot
 The following figure shows an example of a cartesian torque control, where the robot tracks desired SE3 matrices using joint torques as the control variable. To run this command simply uncomment the required line at the end of the main.m file.
 
 <p align="center">
-   <img src="/Visualizations/Cartesian_torque_control.png" width="650" />
+   <img src="/Visualizations/Cartesian_torque_control.png" width="750" />
 </p>
 
 ### Cartesian impedance control
@@ -74,7 +74,7 @@ The following figure shows an example of a cartesian torque control, where the r
 The following figure shows an example of an impedance control, where the robot tracks desired SE3 matrices using joint torque as the control variable, and allowing interactions with the environment (represented by external forces added by the user with the mouse). To run this command simply uncomment the required line at the end of the main.m file.
 
 <p align="center">
-   <img src="/Visualizations/Cartesian_impedance_control.png" width="650" />
+   <img src="/Visualizations/Cartesian_impedance_control.png" width="750" />
 </p>
 
 ## License
