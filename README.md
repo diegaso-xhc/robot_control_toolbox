@@ -35,7 +35,7 @@ The contributions of this repository can be summarized as follows:
 - A class that facilitates the understanding of the control of serial robots.
 - A visualization tool tailored for controllers on a double pendulum (easily customizable to others).
 - Ready to use controllers for position using velocity and torque as control variables.
-- An interactive tool for understanding of impedance control.
+- An interactive tool for understanding impedance control.
 ```
 
 ## Examples of toolbox
