@@ -18,7 +18,7 @@ The repository contains the following files:
 - ControlSerialMultiDOF: A class for the control of a serial multi degree of freedom chain.
 - main: A main file containing samples on how to use the aforementioned class.
 - Call back functions: Functions that allow the reading of position and events of the mouse on the screen (useful for interaction with the robot in torque control mode)
-- mr: The functions provided by Modern Robotics <a href="https://www.google.com/search?channel=fs&client=ubuntu&q=modern+robotics+repository">open source repository</a> 
+- mr: The functions provided by Modern Robotics open source repository (https://www.google.com/search?channel=fs&client=ubuntu&q=modern+robotics+repository)
 ```
 
 The classes are written in a way that facilitates the connection with the hand. The repository also reduces the complexity of handling bytes transmission from and to the hand. This allows the user to focus directly on high level controllers and experiment within different applications.
