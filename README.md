@@ -53,7 +53,7 @@ The following figure shows an example of a cartesian velocity control, where the
    <img src="/Visualizations/Velocity.gif" width="750" />
 </p>
 
-### Cartesian velocity control
+### Joint torque control
 
 The following figure shows an example of a cartesian velocity control, where the robot tracks desired SE3 matrices. To run this command simply uncomment the required line at the end of the main.m file.
 
