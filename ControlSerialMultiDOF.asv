@@ -1,0 +1,578 @@
+classdef ControlSerialMultiDOF
+    properties
+        syst
+        goal_poses
+        plotHandle
+        plots
+    end
+    methods
+        function obj = ControlSerialMultiDOF(goal_poses, syst, h, f) % Constructor
+            obj.syst = syst;
+            obj.goal_poses = goal_poses;
+            obj.plots = h;
+            obj.plotHandle = f;
+        end
+        function run_joint_torque_controller(obj, ths, dt)
+            % cartesian_poses: is a cell with all poses the end effector need to pass through
+            % syst: is a structure with all information of the system to be controlled
+            % gains: is an array with all controller gains for each twist value
+            % imp_ctrl: is the impedance controller structure containing stiffness and damping coefficients
+            % ths: is an array with the thresholds for a position match
+            % type: Space or Body for each Jacobian type
+
+            l1 = obj.syst.l1;
+            l2 = obj.syst.l2;
+            b = obj.syst.b; % Daming due to joint bearings, etc.
+            m1 = obj.syst.m1;
+            m2 = obj.syst.m2;
+
+            I1 = (1/12)*m1*(l1^2);
+            I2 = (1/12)*m2*(l2^2);
+            G1 = diag([0 0 I1 m1 m1 m1]);
+            G2 = diag([0 0 I2 m2 m2 m2]);
+            Glist = cat(3, G1, G2);
+
+            p.current = zeros(2,1); % Current configuration of EE
+
+            f_axes = 0.5;
+
+            set(obj.plots{5}, 'XData', 0);
+            set(obj.plots{5}, 'YData', 0);
+            hold on
+
+            title('Joint Torque Control', 'Color', 'w', 'FontSize', 20);
+
+            dthetalist = [0,0]';
+            dthetalist_desired = [0,0]';
+            g = [0,-9.8,0]';
+            Ftip = [0,0,0,0,0,0]';
+            Fext = zeros(6,1);
+            taulist = [0,0]';
+
+            set(obj.plots{6}, 'visible', 'off')
+            %Torque meters on screen
+
+            %Torque meters on screen            
+            text_tau1 = text(0.6,-2.9,'0.00','FontSize',22,'Color', 'g');
+            text_tau2 = text(2.2,-2.9,'0.00','FontSize',22,'Color', 'g');
+            set(text_tau1,'string','Tau joint 1:');
+            set(text_tau2,'string','Tau joint 2:');
+            text_fx = text(0.6,-2.3,'0.00','FontSize',22,'Color', 'g');
+            text_fy = text(2.2,-2.3,'0.00','FontSize',22,'Color', 'g');
+            set(text_fx,'string','Fext_x:');
+            set(text_fy,'string','Fext_y:');            
+            tmeter1 = text(0.6,-3.2,'0.00','FontSize',22,'Color', 'g');
+            tmeter2 = text(2.2,-3.2,'0.00','FontSize',22,'Color', 'g');
+            %External forces on screen
+            fmeter1 = text(0.6,-2.5,'0.00','FontSize',22,'Color', 'g');
+            fmeter2 = text(2.2,-2.5,'0.00','FontSize',22,'Color', 'g');
+
+            text_goal1 = text(-3.6,-2.9,'0.00','FontSize',22,'Color', 'g');
+            text_goal2 = text(-2.0,-2.9,'0.00','FontSize',22,'Color', 'g');
+            set(text_goal1,'string','Goal pos 1:');
+            set(text_goal2,'string','Goal pos 2:');
+            pmeter1 = text(-3.6,-3.2,'0.00','FontSize',22,'Color', 'g');
+            pmeter2 = text(-2.0,-3.2,'0.00','FontSize',22,'Color', 'g');
+
+            e_int = [0,0]';
+            Kp = 100;
+            Kd = 30;
+            Ki = 10;
+            tmpFx = 0;
+            tmpFy = 0;
+
+            for j = 1: length(obj.goal_poses.joint_poses)
+                p.desired = obj.goal_poses.joint_poses{j}';
+                while(true)
+                    figData = get(obj.plotHandle,'UserData');
+                    pause(dt);
+
+                    ddthetalist = ForwardDynamics(obj.syst.thetalist, dthetalist, taulist, g, Ftip, obj.syst.Mlist_home, Glist, obj.syst.Slist_home);
+                    [obj.syst.thetalist, dthetalist] = EulerStep(obj.syst.thetalist, dthetalist, ddthetalist, dt);
+                    gtheta = GravityForces(obj.syst.thetalist, g, obj.syst.Mlist_home, Glist, obj.syst.Slist_home);
+                    cthetaandthetadot = VelQuadraticForces(obj.syst.thetalist, dthetalist, obj.syst.Mlist_home, Glist, obj.syst.Slist_home);
+                    JTFtip = EndEffectorForces(obj.syst.thetalist, Ftip, obj.syst.Mlist_home, Glist, obj.syst.Slist_home);
+                    M = MassMatrix(obj.syst.thetalist, obj.syst.Mlist_home, Glist, obj.syst.Slist_home);
+
+
+                    Tsb = FKinSpace(obj.syst.Msb_home, obj.syst.Slist_home, obj.syst.thetalist);
+                    Js = JacobianSpace(obj.syst.Slist_home(:,1:2), obj.syst.thetalist);
+                    Jb = Adjoint(inv(Tsb))*Js;
+
+                    e = p.desired - obj.syst.thetalist; % Error
+                    edot = dthetalist_desired - dthetalist; % Derivative of error
+                    e_int = e_int + e*dt; % Integral of error
+
+                    %%%% Possible controllers (uncomment the one you need)
+                    % taulist = -b*dobj.syst.thetalist; % Simulation of only dynamics with damping (no controller)
+                    % taulist = Kp*e + Kd*edot + Ki*e_int - b*dobj.syst.thetalist % PID Controller (Less accurate than using the dynamics)
+                    % taulist = gtheta; % Gravity compensation at a given configuration (no controller)
+                    % taulist = M*(ddobj.syst.thetalist + Kp*e + Kd*edot + Ki*e_int) + cthetaandthetadot + gtheta - b*dobj.syst.thetalist; % Feedforward plus feedback linearization (inaccurate if model is incorrect)
+                    taulist = Kp*e + Kd*edot + Ki*e_int + cthetaandthetadot + gtheta - b*dthetalist + Jb'*Fext; % Approximation using gravity compensation and damping (Suggested)
+                    %%%%%%%%%%%
+
+                    if mean(abs(e)) <= ths
+                        break;
+                    end
+
+                    %%%% PLOT VARIABLES %%%%
+                    if ~isempty(figData.Fx)
+                        tmpFx = figData.Fx;
+                    end
+                    if ~isempty(figData.Fy)
+                        tmpFy = figData.Fy;
+                    end
+
+                    figData.xend = Tsb(1,4);
+                    figData.yend = Tsb(2,4);
+                    set(obj.plotHandle,'UserData',figData);
+                    Fext(4) = tmpFx;
+                    Fext(5) = tmpFy;
+
+                    set(obj.plots{1}, 'XData', [0 l1*cos(obj.syst.thetalist(1))]);
+                    set(obj.plots{1}, 'YData', [0 l1*sin(obj.syst.thetalist(1))]);
+                    set(obj.plots{2}, 'XData', l1*cos(obj.syst.thetalist(1)));
+                    set(obj.plots{2}, 'YData', l1*sin(obj.syst.thetalist(1)));
+                    set(obj.plots{3}, 'XData', [l1*cos(obj.syst.thetalist(1)), l1*cos(obj.syst.thetalist(1)) + l2*cos(obj.syst.thetalist(1)+obj.syst.thetalist(2))]);
+                    set(obj.plots{3}, 'YData', [l1*sin(obj.syst.thetalist(1)), l1*sin(obj.syst.thetalist(1)) + l2*sin(obj.syst.thetalist(1)+obj.syst.thetalist(2))]);
+                    set(obj.plots{4}, 'XData', l1*cos(obj.syst.thetalist(1)) + l2*cos(obj.syst.thetalist(1)+obj.syst.thetalist(2)));
+                    set(obj.plots{4}, 'YData', l1*sin(obj.syst.thetalist(1)) + l2*sin(obj.syst.thetalist(1)+obj.syst.thetalist(2)));
+                    set(tmeter1,'string',strcat(num2str(taulist(1),2),' Nm'));
+                    set(tmeter2,'string',strcat(num2str(taulist(2),2),' Nm'));
+                    set(fmeter1,'string',strcat(num2str(Fext(4),2),' N'));
+                    set(fmeter2,'string',strcat(num2str(Fext(5),2),' N'));
+                    set(pmeter1,'string',strcat(num2str(p.desired(1),3),' rad'));
+                    set(pmeter2,'string',strcat(num2str(p.desired(2),3),' rad'));
+                    % set(h{6}, 'XData', [cartesian_poses{j}(1,4) cartesian_poses{j}(1,4)], 'YData', [cartesian_poses{j}(2,4) cartesian_poses{j}(2,4)],...
+                    %     'UData', [cartesian_poses{j}(1,1)*f_axes cartesian_poses{j}(1,2)*f_axes], 'VData', [cartesian_poses{j}(2,1)*f_axes cartesian_poses{j}(2,2)*f_axes]);
+                    set(obj.plots{7}, 'XData', [Tsb(1,4) Tsb(1,4)], 'YData', [Tsb(2,4) Tsb(2,4)], 'UData', [Tsb(1,1)*f_axes Tsb(1,2)*f_axes], 'VData', [Tsb(2,1)*f_axes Tsb(2,2)*f_axes]);
+                    drawnow;
+                end
+            end
+        end
+
+        function run_cartesian_torque_controller(obj, ths, dt)
+            % cartesian_poses: is a cell with all poses the end effector need to pass through
+            % syst: is a structure with all information of the system to be controlled
+            % gains: is an array with all controller gains for each twist value
+            % imp_ctrl: is the impedance controller structure containing stiffness and damping coefficients
+            % ths: is an array with the thresholds for a position match
+            % type: Space or Body for each Jacobian type
+
+            l1 = obj.syst.l1;
+            l2 = obj.syst.l2;
+            b = obj.syst.b; % Daming due to joint bearings, etc.
+            m1 = obj.syst.m1;
+            m2 = obj.syst.m2;
+
+            I1 = (1/12)*m1*(l1^2);
+            I2 = (1/12)*m2*(l2^2);
+            G1 = diag([0 0 I1 m1 m1 m1]);
+            G2 = diag([0 0 I2 m2 m2 m2]);
+            Glist = cat(3, G1, G2);
+
+            p.current = zeros(4,4); % Current configuration of EE
+            p.desired = zeros(4,4); % Desired configuration of EE
+
+            f_axes = 0.5;
+
+            set(obj.plots{5}, 'XData', 0);
+            set(obj.plots{5}, 'YData', 0);
+            hold on
+
+            Vd = [0,0,0,0,0,0]';
+
+            Jb_prev = zeros(size(6,2));
+            Xe_int = [0,0,0,0,0,0]';
+
+            title('Cartesian Torque Control', 'Color', 'w', 'FontSize', 20);
+
+            dthetalist = [10,0]';
+            g = [0,-9.8,0]';
+            Ftip = [0,0,0,0,0,0]';
+            Fext = zeros(6,1);
+            taulist = [0,0]';
+
+            % set(obj.plots{6}, 'visible', 'off')
+
+            %Torque meters on screen            
+            text_tau1 = text(0.6,-2.9,'0.00','FontSize',22,'Color', 'g');
+            text_tau2 = text(2.2,-2.9,'0.00','FontSize',22,'Color', 'g');
+            set(text_tau1,'string','Tau joint 1:');
+            set(text_tau2,'string','Tau joint 2:');
+            text_fx = text(0.6,-2.3,'0.00','FontSize',22,'Color', 'g');
+            text_fy = text(2.2,-2.3,'0.00','FontSize',22,'Color', 'g');
+            set(text_fx,'string','Fext_x:');
+            set(text_fy,'string','Fext_y:');            
+            tmeter1 = text(0.6,-3.2,'0.00','FontSize',22,'Color', 'g');
+            tmeter2 = text(2.2,-3.2,'0.00','FontSize',22,'Color', 'g');
+            %External forces on screen
+            fmeter1 = text(0.6,-2.5,'0.00','FontSize',22,'Color', 'g');
+            fmeter2 = text(2.2,-2.5,'0.00','FontSize',22,'Color', 'g');
+
+            Kp = 200;
+            Kd = 30;
+            Ki = 5;
+            tmpFx = 0;
+            tmpFy = 0;
+
+            for j = 1: length(obj.goal_poses.cartesian_poses)
+                p.desired = obj.goal_poses.cartesian_poses{j};
+                set(obj.plots{8}, 'XData', p.desired(1,4));
+                set(obj.plots{8}, 'YData', p.desired(2,4));
+
+                while(true)
+                    figData = get(obj.plotHandle,'UserData');
+                    pause(dt);
+                    p.current = FKinSpace(obj.syst.Msb_home, obj.syst.Slist_home, obj.syst.thetalist);
+
+                    ddthetalist = ForwardDynamics(obj.syst.thetalist, dthetalist, taulist, g, Ftip, obj.syst.Mlist_home, Glist, obj.syst.Slist_home);
+                    [obj.syst.thetalist, dthetalist] = EulerStep(obj.syst.thetalist, dthetalist, ddthetalist, dt);
+                    gtheta = GravityForces(obj.syst.thetalist, g, obj.syst.Mlist_home, Glist, obj.syst.Slist_home);
+                    cthetaandthetadot = VelQuadraticForces(obj.syst.thetalist, dthetalist, obj.syst.Mlist_home, Glist, obj.syst.Slist_home);
+                    JTFtip = EndEffectorForces(obj.syst.thetalist, Ftip, obj.syst.Mlist_home, Glist, obj.syst.Slist_home);
+                    M = MassMatrix(obj.syst.thetalist, obj.syst.Mlist_home, Glist, obj.syst.Slist_home);
+                    p.current = FKinSpace(obj.syst.Msb_home, obj.syst.Slist_home, obj.syst.thetalist);
+                    Js = JacobianSpace(obj.syst.Slist_home(:,1:2), obj.syst.thetalist);
+                    Jb = Adjoint(inv(p.current))*Js;
+
+                    % Dynamics Control in the Task Space
+                    alphatheta = pinv(Jb)'*M*pinv(Jb);
+                    
+                    dJb = (1/dt)*(Jb - Jb_prev); % Numerical differentiation, which might be impractical for RT applications but easily generalizable                 
+                    % dJb = get_andiff_J(obj, Js, p.current); % Analytical jacobian differentiation (tailored for double pendulum)
+
+                    Vbdot = dJb*dthetalist + Jb*ddthetalist;
+                    Vb = Jb*dthetalist;
+                    pinvJb = pinv(Jb);
+                    % naothetaandthetadot = pinvJb'*(cthetaandthetadot + gtheta) - alphatheta*dJb*pinvJb*Vb;
+                    naothetaandthetadot = pinvJb'*(cthetaandthetadot + gtheta) - alphatheta*dJb*pinvJb*Vb;
+                    % naothetaandthetadot = pinvJb'*(gtheta) - alphatheta*dJb*pinvJb*Vb;
+                    % taulist = Jb'*(alphatheta*Vbdot + naothetaandthetadot)
+                    % taulist = Jb'*(naothetaandthetadot); % Gravity compensation
+
+                    Jb_prev = Jb;
+
+                    %%%% Body Jacobian Error
+                    p.current = p.current;
+                    tmp_ee_metric = pinv(p.current) * p.desired;
+                    we = so3ToVec(MatrixLog3(tmp_ee_metric(1:3,1:3)));
+                    pe = tmp_ee_metric(1:3, 4);
+                    Xe = [we;pe];
+                    Ve = Vd - Vb;
+                    Xe_int = Xe_int + Xe*dt;
+                    %%%%%%%%%%%
+
+                    taulist = Jb'*(alphatheta*(Kp*Xe + Ki*Xe_int + Kd*Ve) + naothetaandthetadot) + Jb'*Fext; % PID + Coriolis and gravity compensation + External Forces
+
+                    if mean(abs(Xe(1:6))) <= ths
+                        break;
+                    end
+
+                    %%%% PLOT VARIABLES %%%%
+                    if ~isempty(figData.Fx)
+                        tmpFx = figData.Fx;
+                    end
+                    if ~isempty(figData.Fy)
+                        tmpFy = figData.Fy;
+                    end
+
+                    figData.xend = p.current(1,4);
+                    figData.yend = p.current(2,4);
+                    set(obj.plotHandle,'UserData',figData);
+                    Fext(4) = tmpFx;
+                    Fext(5) = tmpFy;
+
+                    set(obj.plots{1}, 'XData', [0 l1*cos(obj.syst.thetalist(1))]);
+                    set(obj.plots{1}, 'YData', [0 l1*sin(obj.syst.thetalist(1))]);
+                    set(obj.plots{2}, 'XData', l1*cos(obj.syst.thetalist(1)));
+                    set(obj.plots{2}, 'YData', l1*sin(obj.syst.thetalist(1)));
+                    set(obj.plots{3}, 'XData', [l1*cos(obj.syst.thetalist(1)), l1*cos(obj.syst.thetalist(1)) + l2*cos(obj.syst.thetalist(1)+obj.syst.thetalist(2))]);
+                    set(obj.plots{3}, 'YData', [l1*sin(obj.syst.thetalist(1)), l1*sin(obj.syst.thetalist(1)) + l2*sin(obj.syst.thetalist(1)+obj.syst.thetalist(2))]);
+                    set(obj.plots{4}, 'XData', l1*cos(obj.syst.thetalist(1)) + l2*cos(obj.syst.thetalist(1)+obj.syst.thetalist(2)));
+                    set(obj.plots{4}, 'YData', l1*sin(obj.syst.thetalist(1)) + l2*sin(obj.syst.thetalist(1)+obj.syst.thetalist(2)));
+                    set(tmeter1,'string',strcat(num2str(taulist(1),2),' Nm'));
+                    set(tmeter2,'string',strcat(num2str(taulist(2),2),' Nm'));
+                    set(fmeter1,'string',strcat(num2str(Fext(4),2),' N'));
+                    set(fmeter2,'string',strcat(num2str(Fext(5),2),' N'));
+                    set(obj.plots{6}, 'XData', [obj.goal_poses.cartesian_poses{j}(1,4) obj.goal_poses.cartesian_poses{j}(1,4)], 'YData', [obj.goal_poses.cartesian_poses{j}(2,4) obj.goal_poses.cartesian_poses{j}(2,4)],...
+                        'UData', [obj.goal_poses.cartesian_poses{j}(1,1)*f_axes obj.goal_poses.cartesian_poses{j}(1,2)*f_axes], 'VData', [obj.goal_poses.cartesian_poses{j}(2,1)*f_axes obj.goal_poses.cartesian_poses{j}(2,2)*f_axes]);
+                    set(obj.plots{7}, 'XData', [p.current(1,4) p.current(1,4)], 'YData', [p.current(2,4) p.current(2,4)], 'UData', [p.current(1,1)*f_axes p.current(1,2)*f_axes], 'VData', [p.current(2,1)*f_axes p.current(2,2)*f_axes]);
+                    drawnow;
+                end
+            end
+        end
+
+        function run_cartesian_impedance_controller(obj, imp_ctrl, ths, dt)
+
+            % cartesian_poses: is a cell with all poses the end effector need to pass through
+            % syst: is a structure with all information of the system to be controlled
+            % gains: is an array with all controller gains for each twist value
+            % imp_ctrl: is the impedance controller structure containing stiffness and damping coefficients
+            % ths: is an array with the thresholds for a position match
+            % type: Space or Body for each Jacobian type
+
+            % cartesian_poses: is a cell with all poses the end effector need to pass through
+            % syst: is a structure with all information of the system to be controlled
+            % gains: is an array with all controller gains for each twist value
+            % imp_ctrl: is the impedance controller structure containing stiffness and damping coefficients
+            % ths: is an array with the thresholds for a position match
+            % type: Space or Body for each Jacobian type
+
+            l1 = obj.syst.l1;
+            l2 = obj.syst.l2;
+            b = obj.syst.b; % Daming due to joint bearings, etc.
+            m1 = obj.syst.m1;
+            m2 = obj.syst.m2;
+
+            I1 = (1/12)*m1*(l1^2);
+            I2 = (1/12)*m2*(l2^2);
+            G1 = diag([0 0 I1 m1 m1 m1]);
+            G2 = diag([0 0 I2 m2 m2 m2]);
+            Glist = cat(3, G1, G2);
+
+            p.current = zeros(4,4); % Current configuration of EE
+            p.desired = zeros(4,4); % Desired configuration of EE
+
+            f_axes = 0.5;
+
+            set(obj.plots{5}, 'XData', 0);
+            set(obj.plots{5}, 'YData', 0);
+            hold on
+
+            Vd = [0,0,0,0,0,0]';
+
+            Jb_prev = zeros(size(6,2));
+            Xe_int = [0,0,0,0,0,0]';
+
+            title('Cartesian Impedance Control', 'Color', 'w', 'FontSize', 20);
+
+            dthetalist = [10,0]';
+            g = [0,-9.8,0]';
+            Ftip = [0,0,0,0,0,0]';
+            K_imp = imp_ctrl.K_imp;
+            B_imp = imp_ctrl.B_imp;
+            Fext = zeros(6,1);
+            taulist = [0,0]';
+
+            % set(obj.plots{6}, 'visible', 'off')
+            
+            %Torque meters on screen            
+            text_tau1 = text(0.6,-2.9,'0.00','FontSize',22,'Color', 'g');
+            text_tau2 = text(2.2,-2.9,'0.00','FontSize',22,'Color', 'g');
+            set(text_tau1,'string','Tau joint 1:');
+            set(text_tau2,'string','Tau joint 2:');
+            text_fx = text(0.6,-2.3,'0.00','FontSize',22,'Color', 'g');
+            text_fy = text(2.2,-2.3,'0.00','FontSize',22,'Color', 'g');
+            set(text_fx,'string','Fext_x:');
+            set(text_fy,'string','Fext_y:');            
+            tmeter1 = text(0.6,-3.2,'0.00','FontSize',22,'Color', 'g');
+            tmeter2 = text(2.2,-3.2,'0.00','FontSize',22,'Color', 'g');
+            %External forces on screen
+            fmeter1 = text(0.6,-2.5,'0.00','FontSize',22,'Color', 'g');
+            fmeter2 = text(2.2,-2.5,'0.00','FontSize',22,'Color', 'g');
+
+            Kp = 200;
+            Kd = 30;
+            Ki = 5;
+            tmpFx = 0;
+            tmpFy = 0;
+
+            for j = 1: length(obj.goal_poses.cartesian_poses)
+                p.desired = obj.goal_poses.cartesian_poses{j};
+                set(obj.plots{8}, 'XData', p.desired(1,4));
+                set(obj.plots{8}, 'YData', p.desired(2,4));
+
+                while(true)
+                    figData = get(obj.plotHandle,'UserData');
+                    pause(dt);
+                    p.current = FKinSpace(obj.syst.Msb_home, obj.syst.Slist_home, obj.syst.thetalist);
+
+                    ddthetalist = ForwardDynamics(obj.syst.thetalist, dthetalist, taulist, g, Ftip, obj.syst.Mlist_home, Glist, obj.syst.Slist_home);
+                    [obj.syst.thetalist, dthetalist] = EulerStep(obj.syst.thetalist, dthetalist, ddthetalist, dt);
+                    gtheta = GravityForces(obj.syst.thetalist, g, obj.syst.Mlist_home, Glist, obj.syst.Slist_home);
+                    cthetaandthetadot = VelQuadraticForces(obj.syst.thetalist, dthetalist, obj.syst.Mlist_home, Glist, obj.syst.Slist_home);
+                    JTFtip = EndEffectorForces(obj.syst.thetalist, Ftip, obj.syst.Mlist_home, Glist, obj.syst.Slist_home);
+                    M = MassMatrix(obj.syst.thetalist, obj.syst.Mlist_home, Glist, obj.syst.Slist_home);
+                    p.current = FKinSpace(obj.syst.Msb_home, obj.syst.Slist_home, obj.syst.thetalist);
+                    Js = JacobianSpace(obj.syst.Slist_home(:,1:2), obj.syst.thetalist);
+                    Jb = Adjoint(inv(p.current))*Js;
+
+                    % Dynamics Control in the Task Space
+                    alphatheta = pinv(Jb)'*M*pinv(Jb);
+                    % dJb = (1/dt)*(Jb - Jb_prev); % Numerical differentiation, which might be impractical for RT applications but easily generalizable                 
+                    dJb = get_andiff_J(obj, Js, p.current); % Analytical jacobian differentiation (tailored for double pendulum)
+
+                    Vbdot = dJb*dthetalist + Jb*ddthetalist;
+                    Vb = Jb*dthetalist;
+                    pinvJb = pinv(Jb);
+                    naothetaandthetadot = pinvJb'*(cthetaandthetadot + gtheta) - alphatheta*dJb*pinvJb*Vb;
+                    % naothetaandthetadot = pinvJb'*(gtheta) - alphatheta*dJb*pinvJb*Vb;
+                    Jb_prev = Jb;
+                    % taulist = Jb'*(alphatheta*Vbdot + naothetaandthetadot)
+
+                    Ve = Vd - Vb;
+
+                    %%%% Body Jacobian Error
+                    p.current = p.current;
+                    tmp_ee_metric = pinv(p.current) * p.desired;
+                    we = so3ToVec(MatrixLog3(tmp_ee_metric(1:3,1:3)));
+                    pe = tmp_ee_metric(1:3, 4);
+                    Xe = [we;pe];
+                    Xe_int = Xe_int + Xe*dt;
+                    %%%%%%%%%%%
+                    % taulist = Jb'*(naothetaandthetadot); % Gravity compensation
+                    taulist = Jb'*(alphatheta*(Kp*Xe + Ki*Xe_int + Kd*Ve) + naothetaandthetadot); % Gravity compensation in task space
+                    taulist_impedance = Jb'*(K_imp.*Xe + B_imp.*Ve); % Impedance compensation
+                    taulist = taulist - taulist_impedance + Jb'*Fext - b*dthetalist; % Controller considering external forces
+
+
+                    if mean(abs(Xe(1:6))) <= ths
+                        break;
+                    end
+
+                    %%%% PLOT VARIABLES %%%%
+                    if ~isempty(figData.Fx)
+                        tmpFx = figData.Fx;
+                    end
+                    if ~isempty(figData.Fy)
+                        tmpFy = figData.Fy;
+                    end
+
+                    figData.xend = p.current(1,4);
+                    figData.yend = p.current(2,4);
+                    set(obj.plotHandle,'UserData',figData);
+                    Fext(4) = tmpFx;
+                    Fext(5) = tmpFy;
+
+                    set(obj.plots{1}, 'XData', [0 l1*cos(obj.syst.thetalist(1))]);
+                    set(obj.plots{1}, 'YData', [0 l1*sin(obj.syst.thetalist(1))]);
+                    set(obj.plots{2}, 'XData', l1*cos(obj.syst.thetalist(1)));
+                    set(obj.plots{2}, 'YData', l1*sin(obj.syst.thetalist(1)));
+                    set(obj.plots{3}, 'XData', [l1*cos(obj.syst.thetalist(1)), l1*cos(obj.syst.thetalist(1)) + l2*cos(obj.syst.thetalist(1)+obj.syst.thetalist(2))]);
+                    set(obj.plots{3}, 'YData', [l1*sin(obj.syst.thetalist(1)), l1*sin(obj.syst.thetalist(1)) + l2*sin(obj.syst.thetalist(1)+obj.syst.thetalist(2))]);
+                    set(obj.plots{4}, 'XData', l1*cos(obj.syst.thetalist(1)) + l2*cos(obj.syst.thetalist(1)+obj.syst.thetalist(2)));
+                    set(obj.plots{4}, 'YData', l1*sin(obj.syst.thetalist(1)) + l2*sin(obj.syst.thetalist(1)+obj.syst.thetalist(2)));
+                    set(tmeter1,'string',strcat(num2str(taulist(1),2),' Nm'));
+                    set(tmeter2,'string',strcat(num2str(taulist(2),2),' Nm'));
+                    set(fmeter1,'string',strcat(num2str(Fext(4),2),' N'));
+                    set(fmeter2,'string',strcat(num2str(Fext(5),2),' N'));
+                    set(obj.plots{6}, 'XData', [obj.goal_poses.cartesian_poses{j}(1,4) obj.goal_poses.cartesian_poses{j}(1,4)], 'YData', [obj.goal_poses.cartesian_poses{j}(2,4) obj.goal_poses.cartesian_poses{j}(2,4)],...
+                        'UData', [obj.goal_poses.cartesian_poses{j}(1,1)*f_axes obj.goal_poses.cartesian_poses{j}(1,2)*f_axes], 'VData', [obj.goal_poses.cartesian_poses{j}(2,1)*f_axes obj.goal_poses.cartesian_poses{j}(2,2)*f_axes]);
+                    set(obj.plots{7}, 'XData', [p.current(1,4) p.current(1,4)], 'YData', [p.current(2,4) p.current(2,4)], 'UData', [p.current(1,1)*f_axes p.current(1,2)*f_axes], 'VData', [p.current(2,1)*f_axes p.current(2,2)*f_axes]);
+                    drawnow;
+                end
+            end
+        end
+
+        function run_cartesian_velocity_controller(obj, gains, ths, type, dt)
+            % cartesian_poses: is a cell with all poses the end effector need to pass through
+            % syst: is a structure with all information of the system to be controlled
+            % gains: is an array with all controller gains for each twist value
+            % ths: is an array with the thresholds for a position match
+            % type: Space or Body for each Jacobian type
+            l1 = obj.syst.l1;
+            l2 = obj.syst.l2;            
+
+            p.current = zeros(4,4); % Current configuration of EE
+            p.desired = zeros(4,4); % Desired configuration of EE
+
+            f_axes = 0.5;
+
+            set(obj.plots{5}, 'XData', 0);
+            set(obj.plots{5}, 'YData', 0);
+            hold on            
+            title('Cartesian Velocity Control', 'Color', 'w', 'FontSize', 20);
+
+            %Velocity meters on screen
+            pmeter1 = text(-3.6,-3.2,'0.00','FontSize',22,'Color', 'g');
+            pmeter2 = text(-2.0,-3.2,'0.00','FontSize',22,'Color', 'g');
+            text_pos1 = text(-3.6,-2.9,'0.00','FontSize',22,'Color', 'g');
+            text_pos2 = text(-2.0,-2.9,'0.00','FontSize',22,'Color', 'g');
+            set(text_pos1,'string','Pos joint 1:');
+            set(text_pos2,'string','Pos joint 2:');
+            vmeter1 = text(0.6,-3.2,'0.00','FontSize',22,'Color', 'g');
+            vmeter2 = text(2.2,-3.2,'0.00','FontSize',22,'Color', 'g');                       
+            text_vel1 = text(0.6,-2.9,'0.00','FontSize',22,'Color', 'g');
+            text_vel2 = text(2.2,-2.9,'0.00','FontSize',22,'Color', 'g');
+            set(text_vel1,'string','Vel joint 1:');
+            set(text_vel2,'string','Vel joint 2:');
+
+            for j = 1: length(obj.goal_poses.cartesian_poses)
+                p.desired = obj.goal_poses.cartesian_poses{j};
+                while (true)
+                    pause(dt);
+                    p.current = FKinSpace(obj.syst.Msb_home, obj.syst.Slist_home, obj.syst.thetalist);
+                    Js = JacobianSpace(obj.syst.Slist_home, obj.syst.thetalist);
+                    %%%% ERROR
+                    if strcmp(type, 'Space_jacobian')
+                        %%%% Space Jacobian
+                        we = so3ToVec(MatrixLog3(p.current(1:3,1:3)'*p.desired(1:3,1:3)));
+                        td = p.desired(1:3,4);
+                        tc = p.current(1:3,4);
+                        pe = td - tc;
+                        ve = [we;pe];
+                    elseif strcmp(type, 'Body_jacobian')
+                        %%%% Body Jacobian
+                        tmp_ee_metric = pinv(p.current) * p.desired;
+                        we = so3ToVec(MatrixLog3(tmp_ee_metric(1:3,1:3)));
+                        pe = tmp_ee_metric(1:3, 4);
+                        ve = [we;pe];
+                        %%%%%%%%%%%
+                    end
+
+                    if mean(abs(ve)) <= ths % Checking all thresholds are satisfied
+                        break;
+                    end
+
+                    ve = ve.*gains'; % Proportional controller
+
+                    if strcmp(type, 'Space_jacobian')
+                        qdot = pinv(Js)*ve;
+                    elseif strcmp(type, 'Body_jacobian')
+                        Jb = Adjoint(inv(p.current))*Js;
+                        qdot = pinv(Jb)*ve;
+                    end
+
+                    obj.syst.thetalist = obj.syst.thetalist + qdot*dt; % Update joint positions
+
+                    % Limit joint angles
+                    for i = 1:2
+                        if obj.syst.thetalist(i) <= 0
+                            obj.syst.thetalist(i) = obj.syst.thetalist(i) + 2*pi;
+                        elseif obj.syst.thetalist(i) >= 2*pi
+                            obj.syst.thetalist(i) = obj.syst.thetalist(i) - 2*pi;
+                        end
+                    end
+                    set(obj.plots{1}, 'XData', [0 l1*cos(obj.syst.thetalist(1))]);
+                    set(obj.plots{1}, 'YData', [0 l1*sin(obj.syst.thetalist(1))]);
+                    set(obj.plots{2}, 'XData', l1*cos(obj.syst.thetalist(1)));
+                    set(obj.plots{2}, 'YData', l1*sin(obj.syst.thetalist(1)));
+                    set(obj.plots{3}, 'XData', [l1*cos(obj.syst.thetalist(1)), l1*cos(obj.syst.thetalist(1)) + l2*cos(obj.syst.thetalist(1)+obj.syst.thetalist(2))]);
+                    set(obj.plots{3}, 'YData', [l1*sin(obj.syst.thetalist(1)), l1*sin(obj.syst.thetalist(1)) + l2*sin(obj.syst.thetalist(1)+obj.syst.thetalist(2))]);
+                    set(obj.plots{4}, 'XData', l1*cos(obj.syst.thetalist(1)) + l2*cos(obj.syst.thetalist(1)+obj.syst.thetalist(2)));
+                    set(obj.plots{4}, 'YData', l1*sin(obj.syst.thetalist(1)) + l2*sin(obj.syst.thetalist(1)+obj.syst.thetalist(2)));
+                    set(obj.plots{6}, 'XData', [obj.goal_poses.cartesian_poses{j}(1,4) obj.goal_poses.cartesian_poses{j}(1,4)], 'YData', [obj.goal_poses.cartesian_poses{j}(2,4) obj.goal_poses.cartesian_poses{j}(2,4)],...
+                        'UData', [obj.goal_poses.cartesian_poses{j}(1,1)*f_axes obj.goal_poses.cartesian_poses{j}(1,2)*f_axes], 'VData', [obj.goal_poses.cartesian_poses{j}(2,1)*f_axes obj.goal_poses.cartesian_poses{j}(2,2)*f_axes]);
+                    set(obj.plots{7}, 'XData', [p.current(1,4) p.current(1,4)], 'YData', [p.current(2,4) p.current(2,4)], 'UData', [p.current(1,1)*f_axes p.current(1,2)*f_axes], 'VData', [p.current(2,1)*f_axes p.current(2,2)*f_axes]);
+                    set(pmeter1,'string',strcat(num2str(obj.syst.thetalist(1)*180/pi,3),' deg'));
+                    set(pmeter2,'string',strcat(num2str(obj.syst.thetalist(2)*180/pi,3),' deg'));
+                    set(vmeter1,'string',strcat(num2str(qdot(1),2),' rad/s'));
+                    set(vmeter2,'string',strcat(num2str(qdot(2),2),' rad/s'));
+                end
+                disp('Arrived pos:')
+                obj.goal_poses.cartesian_poses{j}
+            end
+        end
+        function dJb = get_andiff_J(obj, Js, Tsb)
+            %%%% Analytical jacobian differentiation (tailored for double pendulum)
+            Jv2 = Js(4:6,2)*dthetalist(2);           
+            c12 = cos(obj.syst.thetalist(1)+obj.syst.thetalist(2));
+            s12 = sin(obj.syst.thetalist(1)+obj.syst.thetalist(2));
+            dJs_an = [0, 0, 0, -l2*c12 - Jv2(2), -l2*s12 + Jv2(1), 0;
+                0, 0, 0, 0, 0, 0;]';                    
+            dJb = Adjoint(inv(Tsb))*dJs_an;             
+            %%%%        
+        end
+    end
+end
