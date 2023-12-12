@@ -7,7 +7,7 @@ Human hands are the sought-after end effector, because of their high performance
 <br />
 <br /> 
 <p align="center">
-   <img src="/Visualizations/impedance.gif" width="700" />
+   <img src="/Visualizations/Impedance_opt.gif" width="700" />
 </p>
 
 
