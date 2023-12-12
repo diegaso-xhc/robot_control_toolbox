@@ -55,39 +55,29 @@ The following figure shows an example of a cartesian velocity control, where the
 
 ### Joint torque control
 
-The following figure shows an example of a cartesian velocity control, where the robot tracks desired SE3 matrices. To run this command simply uncomment the required line at the end of the main.m file.
-
-<p align="center">
-   <img src="/Visualizations/Velocity.gif" width="750" />
-</p>
-
-
-<p align="center">
-   <img src="/Visualizations/Cartesian_velocity_control.png" width="650" />
-</p>
+The following figure shows an example of a joint torque control, where the robot tracks desired joint position values using torque as the control variable. To run this command simply uncomment the required line at the end of the main.m file.
 
 <p align="center">
    <img src="/Visualizations/Joint_torque_control.png" width="650" />
 </p>
 
+### Cartesian torque control
 
+The following figure shows an example of a cartesian torque control, where the robot tracks desired SE3 matrices using joint torques as the control variable. To run this command simply uncomment the required line at the end of the main.m file.
 
 <p align="center">
    <img src="/Visualizations/Cartesian_torque_control.png" width="650" />
 </p>
 
+### Cartesian impedance control
+
+The following figure shows an example of an impedance control, where the robot tracks desired SE3 matrices using joint torque as the control variable, and allowing interactions with the environment (represented by external forces added by the user with the mouse). To run this command simply uncomment the required line at the end of the main.m file.
+
 <p align="center">
    <img src="/Visualizations/Cartesian_impedance_control.png" width="650" />
-</p>
-### Time response to a Step-like excitement signal
-
-The following figure shows the time response of a system to a step-like excitement signal:
-
-<p align="center">
-  <img src="/Visualizations/Systems_time_response.PNG" width="650" />  
 </p>
 
 ## License
 
-Developed by Diego Hidalgo C. (2021). This repository is intended for research purposes only. If you wish to use any parts of the provided code for commercial purposes, please contact the author at hidalgocdiego@gmail.com.
+Developed by Diego Hidalgo C. (2023). This repository is intended for research purposes only. If you wish to use any parts of the provided code for commercial purposes, please contact the author at hidalgocdiego@gmail.com.
 
