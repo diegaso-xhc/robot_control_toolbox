@@ -13,11 +13,14 @@ The progressive prevalence of robotic systems in a myriad of applications worldw
 
 ## Understanding repository
 
-The reository contains two files, namely:
+The repository contains the following files:
 ```
-- toolkits: Python file containing all classes and controllers to connect, use, and control the robotic hand.
-- main: A main file containing samples on how to use the functions on toolkits.
+- ControlSerialMultiDOF: A class for the control of a serial multi degree of freedom chain.
+- main: A main file containing samples on how to use the aforementioned class.
+- Call back functions: Functions that allow the reading of position and events of the mouse on the screen (useful for interaction with the robot in torque control mode)
+- mr: The functions provided by Modern Robotics <a href="https://www.google.com/search?channel=fs&client=ubuntu&q=modern+robotics+repository">open source repository</a> 
 ```
+
 The classes are written in a way that facilitates the connection with the hand. The repository also reduces the complexity of handling bytes transmission from and to the hand. This allows the user to focus directly on high level controllers and experiment within different applications.
 <br />
 Whenever using position, current or force controllers, you will be able to see and extract the error and response on each one of the fingers you desired to control. The following images correspond to the position error and response signals of the motion on the gif above:
