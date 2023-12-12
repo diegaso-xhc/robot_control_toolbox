@@ -58,9 +58,20 @@ The following figure shows the time response of a system to a sine wave exciteme
 ```
 
 <p align="center">
-   <img src="/Visualizations/Sine_response.PNG" width="650" />
+   <img src="/Visualizations/Joint_torque_control.png" width="650" />
 </p>
 
+<p align="center">
+   <img src="/Visualizations/Cartesian_velocity_control.png" width="650" />
+</p>
+
+<p align="center">
+   <img src="/Visualizations/Cartesian_torque_control.png" width="650" />
+</p>
+
+<p align="center">
+   <img src="/Visualizations/Cartesian_impedance_control.png" width="650" />
+</p>
 ### Time response to a Step-like excitement signal
 
 The following figure shows the time response of a system to a step-like excitement signal:
