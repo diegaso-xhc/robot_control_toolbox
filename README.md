@@ -29,3 +29,47 @@ Whenever using position, current or force controllers, you will be able to see a
    <img src="/Visualizations/Velocity.gif" width="750" />
 </p>
 <br />
+
+## Contributions
+
+The contributions of this repository can be summarized as follows:
+
+```
+- A class that facilitates the connection via serial port to a device.
+- Classes that handle the byte transmission to and from the robotic hand.
+- Most of the functionalities explained in the manual of the ih2 azzurra hand (you won't need to develop things on your own).
+- Ready to use controllers for position, current and force (P,PI,PD,PID).
+- Visualization functions for analysis of the controllers responses.
+```
+
+## Examples of GUI usage
+
+### Time response to a Sine-wave-like excitement signal
+
+The following figure shows the time response of a system to a sine wave excitement signal of 4Hz. Note that in order to obtain the time response, the user needs to do the following:
+
+```
+- Input the transfer function: [numerator separated by commas];[denominator separated by commas]
+- Click on Create Model
+- Input the sampling time (dt), initial time (t(t0)), and final time in seconds.
+- If the user requires a step response, click on Step response. For sine wave excitements, please input the frequency of the sine wave and click on Sine response.
+- The user can then click on get time response or view frequency spectrum.
+- Although visualizations for Bode and Nichols charts are not available at the moment, the user can still click them and extract the frequency responses from the library.
+```
+
+<p align="center">
+   <img src="/Visualizations/Sine_response.PNG" width="650" />
+</p>
+
+### Time response to a Step-like excitement signal
+
+The following figure shows the time response of a system to a step-like excitement signal:
+
+<p align="center">
+  <img src="/Visualizations/Systems_time_response.PNG" width="650" />  
+</p>
+
+## License
+
+Developed by Diego Hidalgo C. (2021). This repository is intended for research purposes only. If you wish to use any parts of the provided code for commercial purposes, please contact the author at hidalgocdiego@gmail.com.
+
